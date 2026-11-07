@@ -3,6 +3,7 @@ import json
 import os
 import re
 import subprocess
+import time
 import urllib.error
 import urllib.request
 
@@ -39,7 +40,16 @@ def call_claude_cli(system: str, prompt: str, schema: dict) -> dict:
                "--no-session-persistence", "--system-prompt", system,
                "--tools", "", "--setting-sources", "", "--strict-mcp-config",
                "--json-schema", json.dumps(schema)]
-    done = subprocess.run(command, input=prompt, capture_output=True, text=True, timeout=240)
+    for attempt in range(ATTEMPTS):
+        try:
+            done = subprocess.run(command, input=prompt, capture_output=True, text=True, timeout=240)
+        except subprocess.TimeoutExpired:
+            if attempt + 1 == ATTEMPTS:
+                raise RuntimeError("claude не ответил за 240 секунд") from None
+            continue
+        if done.returncode == 0 or attempt + 1 == ATTEMPTS:
+            break
+        time.sleep(5)
     if done.returncode != 0:
         raise RuntimeError(f"claude exited {done.returncode}: {done.stderr[:300] or done.stdout[:300]}")
     payload = json.loads(done.stdout)

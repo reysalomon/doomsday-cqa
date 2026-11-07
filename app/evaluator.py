@@ -134,7 +134,15 @@ def aggregate(criterion: dict, answers: list) -> str:
 def evaluate(record: dict, checklist: dict, votes: int = 1) -> dict:
     """Run `votes` independent passes and aggregate the answer per criterion."""
     prompt, schema = build_prompt(record, checklist), output_schema(checklist)
-    passes = [call_model(SYSTEM_PROMPT, prompt, schema) for _ in range(votes)]
+    passes, failures = [], []
+    for _ in range(votes):
+        try:
+            passes.append(call_model(SYSTEM_PROMPT, prompt, schema))
+        except Exception as error:  # one failed pass should not lose the others
+            failures.append(str(error)[:200])
+    if not passes:
+        raise RuntimeError(f"Все прогоны завершились ошибкой: {failures[0]}")
+    votes = len(passes)
 
     results, answers = {}, {}
     for criterion in checklist["criteria"]:
@@ -148,6 +156,7 @@ def evaluate(record: dict, checklist: dict, votes: int = 1) -> dict:
 
     return {"conversation_id": record["conversation_id"], "criteria": results,
             "score": compute(checklist, answers), "model": passes[0]["model"], "votes": votes,
+            "failed_passes": failures,
             "checklist_version": checklist.get("version"),
             "evaluated_at": datetime.now(timezone.utc).isoformat(),
             "cost_usd": sum(p["cost_usd"] for p in passes)}
