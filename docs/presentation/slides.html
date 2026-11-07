@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>CQA · Night Warriors</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+@page{size:1920px 1080px;margin:0}
+:root{--night:#0b2419;--brand:#0a8a4a;--brand2:#06603a;--mint:#e3f4ea;--mint2:#bfe3cf;--ink:#0f1f18;--muted:#5b6b63;--line:#e1e7e3;--bg:#f2f5f3;--amber-soft:#fff2db;--red:#b42318;--red-soft:#fdecea}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,"Segoe UI",Arial,sans-serif;color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.slide{width:1920px;height:1080px;position:relative;overflow:hidden;page-break-after:always;background:#fff;padding:90px 110px}
+.dark{background:radial-gradient(circle at 85% 15%,rgba(59,224,138,.28),transparent 40%),linear-gradient(160deg,#0d2c1f,#06150e);color:#fff}
+.light{background:var(--bg)}
+h1{font-size:84px;font-weight:800;letter-spacing:-.03em;line-height:1.05}
+h2{font-size:56px;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin-bottom:18px}
+.lead{font-size:28px;color:var(--muted);line-height:1.45;max-width:1400px}
+.dark .lead{color:#b9d3c5}
+.eyebrow{font-size:20px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);margin-bottom:18px}
+.dark .eyebrow{color:#7fe0aa}
+.num{position:absolute;right:110px;bottom:56px;font-size:18px;color:#8a9a92}
+.brandline{position:absolute;left:110px;bottom:56px;font-size:18px;color:#8a9a92}
+.mark{width:96px;height:96px;border-radius:26px;background:linear-gradient(135deg,#3be08a,#0a8a4a);display:grid;place-items:center;font-weight:800;font-size:52px;color:#fff;box-shadow:0 16px 40px rgba(46,204,113,.35)}
+.ic{width:72px;height:72px;border-radius:20px;background:var(--mint);color:var(--brand2);display:grid;place-items:center;flex:none}
+.ic svg{width:38px;height:38px}
+.dark .ic,.tip .ic{background:rgba(255,255,255,.1);color:#7fe0aa}
+.card{background:#fff;border:1px solid var(--line);border-radius:28px;padding:40px;box-shadow:0 2px 4px rgba(15,31,24,.04),0 18px 40px rgba(15,31,24,.07)}
+.card h3{font-size:30px;font-weight:700;margin:24px 0 12px}
+.card p{font-size:23px;color:var(--muted);line-height:1.45}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:36px;margin-top:60px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:50px}
+.shot{border-radius:22px;box-shadow:0 30px 70px rgba(15,31,24,.22);border:1px solid var(--line);display:block}
+.big{font-size:150px;font-weight:800;letter-spacing:-.05em;line-height:1;color:var(--brand2)}
+.tag{display:inline-block;padding:8px 18px;border-radius:99px;font-size:20px;font-weight:600}
+.tag.ok{background:var(--mint);color:var(--brand2)}.tag.bad{background:var(--red-soft);color:var(--red)}
+ul.clean{list-style:none}ul.clean li{display:flex;gap:22px;align-items:flex-start;font-size:24px;line-height:1.4;margin-bottom:30px}
+ul.clean li b{display:block;font-size:28px;margin-bottom:2px}
+ul.clean li span.t{color:var(--muted)}
+.flow{display:flex;gap:18px;margin-top:70px;align-items:stretch}
+.step{flex:1;background:#fff;border:1px solid var(--line);border-radius:26px;padding:34px 28px;box-shadow:0 18px 40px rgba(15,31,24,.06)}
+.step .n{width:56px;height:56px;border-radius:50%;background:var(--brand);color:#fff;font-weight:800;font-size:26px;display:grid;place-items:center;margin-bottom:22px}
+.step h4{font-size:27px;font-weight:700;margin-bottom:10px;line-height:1.2}
+.step p{font-size:21px;color:var(--muted);line-height:1.4}
+.step.hl{background:var(--night);color:#fff;border-color:var(--night)}.step.hl p{color:#b9d3c5}.step.hl .n{background:#3be08a;color:var(--night)}
+.arrow{align-self:center;color:var(--brand);font-size:44px;font-weight:800}
+.bubble{border-radius:24px;padding:26px 30px;font-size:26px;line-height:1.45}
+.who{font-size:17px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+.bad-b{background:var(--red-soft);border:2px solid #f3c2bd}.bad-b .who{color:var(--red)}
+.good-b{background:#fff;border:2px solid var(--mint2)}.good-b .who{color:var(--brand2)}
+.tip{background:var(--night);color:#fff;border-radius:24px;padding:22px 28px;font-size:25px;line-height:1.4;display:flex;gap:20px;align-items:center}
+.bars{display:grid;gap:26px}
+.bar{display:grid;grid-template-columns:230px 1fr 90px;align-items:center;gap:20px;font-size:25px}
+.track{height:44px;background:#e3ebe6;border-radius:12px;overflow:hidden}
+.fill{height:100%;background:linear-gradient(90deg,#0a8a4a,#2ecc71);border-radius:12px}
+.bar b{font-size:30px;font-variant-numeric:tabular-nums;text-align:right}
+.stat{background:#fff;border:1px solid var(--line);border-radius:24px;padding:28px 32px;box-shadow:0 18px 40px rgba(15,31,24,.06)}
+.stat .v{font-size:60px;font-weight:800;letter-spacing:-.03em;color:var(--brand2);line-height:1}
+.stat .v.r{color:var(--red)}
+.stat .l{font-size:21px;color:var(--muted);margin-top:10px;line-height:1.35}
+.trust{display:flex;gap:32px;padding:56px 48px;min-height:300px}.trust h3{font-size:34px;margin:6px 0 16px!important}.trust p{font-size:26px}
+.member{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:30px 34px;display:flex;gap:22px;align-items:center;font-size:30px;font-weight:650}
+.av{width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,#3be08a,#0a8a4a);display:grid;place-items:center;font-weight:800;font-size:26px;flex:none}
+</style>
+</head>
+<body>
+
+<section class="slide dark">
+  <div style="display:flex;align-items:center;gap:28px;margin-top:20px">
+    <div class="mark">Q</div>
+    <div style="font-size:34px;font-weight:800;letter-spacing:.06em">CQA<div style="font-size:20px;font-weight:500;color:#8fb8a2;letter-spacing:.04em">Conversation Quality Analytics</div></div>
+  </div>
+  <div style="margin-top:150px">
+    <div class="eyebrow">Data Challenge Doomsday 2026 · Freedom Broker</div>
+    <h1>ИИ-контроль качества<br>чатов и звонков поддержки</h1>
+    <p class="lead" style="margin-top:34px">Оцениваем каждый диалог на русском, казахском и английском по чек-листу компании — с доказательствами, проверкой человеком и советом оператору.</p>
+  </div>
+  <div style="position:absolute;left:110px;bottom:90px;font-size:28px;font-weight:700">Night Warriors</div>
+  <div style="position:absolute;right:110px;bottom:90px;display:flex;gap:14px">
+    <span class="tag" style="background:rgba(255,255,255,.1);color:#fff">RU</span><span class="tag" style="background:rgba(255,255,255,.1);color:#fff">KZ</span><span class="tag" style="background:rgba(255,255,255,.1);color:#fff">EN</span>
+  </div>
+</section>
+
+<section class="slide light">
+  <div class="eyebrow">Задача</div>
+  <h2>Ручной контроль качества не масштабируется</h2>
+  <p class="lead">Контролёр читает и слушает диалоги вручную, поэтому проверяется лишь малая часть, а оценки разных людей расходятся.</p>
+  <div class="grid3">
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+      <h3>Медленно</h3><p>Каждый диалог нужно прочитать или прослушать целиком и сверить с чек-листом из восьми критериев.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 21h14M3 7h18M6 7l-3 7a3 3 0 0 0 6 0zM18 7l-3 7a3 3 0 0 0 6 0z"/></svg></div>
+      <h3>Субъективно</h3><p>«Эмпатия» и «полнота ответа» у разных контролёров означают разное. Оператору трудно оспорить оценку.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div>
+      <h3>Три языка и звонки</h3><p>Чаты и записи звонков на русском, казахском и английском, с ошибками распознавания речи.</p></div>
+  </div>
+  <div class="tip" style="margin-top:56px;padding:34px 40px;font-size:30px;font-weight:600"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/></svg></div>CQA оценивает каждый диалог, а человеку отдаёт только то, в чём модель не уверена.</div>
+  <div class="num">2</div>
+</section>
+
+<section class="slide light">
+  <div class="eyebrow">Как это работает</div>
+  <h2>От диалога до итога — за минуту</h2>
+  <p class="lead">Модель отвечает на вопросы чек-листа, а всё, что можно проверить кодом, проверяет код.</p>
+  <div class="flow">
+    <div class="step"><div class="n">1</div><h4>Загрузка</h4><p>Диалоги из API организаторов или файлом. Чаты и звонки с записью.</p></div>
+    <div class="arrow">›</div>
+    <div class="step"><div class="n">2</div><h4>3 независимых прогона</h4><p>Claude оценивает каждый критерий трижды: ответ, объяснение, реплика-доказательство.</p></div>
+    <div class="arrow">›</div>
+    <div class="step"><div class="n">3</div><h4>Проверка цитат</h4><p>Код сверяет каждую цитату с транскриптом — выдумать доказательство нельзя.</p></div>
+    <div class="arrow">›</div>
+    <div class="step"><div class="n">4</div><h4>Итог считает код</h4><p>Веса, N/A с перераспределением, округление — строго по чек-листу.</p></div>
+    <div class="arrow">›</div>
+    <div class="step hl"><div class="n">5</div><h4>Спорное — человеку</h4><p>Неуверенные ответы уходят в очередь проверки, остальные принимаются сразу.</p></div>
+  </div>
+  <div class="tip" style="margin-top:56px;padding:34px 40px;font-size:30px;font-weight:600"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/></svg></div>~1 минута и $0.05 на диалог · 8 критериев · ответ, объяснение и доказательство по каждому</div>
+  <div class="num">3</div>
+</section>
+
+<section class="slide light" style="padding-right:0">
+  <div style="display:grid;grid-template-columns:620px 1fr;gap:70px;height:100%">
+    <div>
+      <div class="eyebrow">Особенность №1</div>
+      <h2>ИИ знает, где он не уверен</h2>
+      <p class="lead" style="font-size:25px">Если три прогона модели разошлись или цитата не нашлась в тексте, ответ сам уходит человеку. Остальное проверять не нужно.</p>
+      <div style="margin-top:56px" class="big">92%</div>
+      <p style="font-size:26px;margin-top:10px;font-weight:600">ответов на DEV принято автоматически</p>
+      <p style="font-size:23px;color:var(--muted);margin-top:8px;line-height:1.4">Человеку — только 44 из 520 ответов. Чаще всего это «Завершение» в английских чатах: там правило чек-листа неоднозначно.</p>
+    </div>
+    <div style="padding-top:20px"><img class="shot" src="review_c.png" style="width:1150px"></div>
+  </div>
+  <div class="num">4</div>
+</section>
+
+<section class="slide light">
+  <div class="eyebrow">Особенность №2</div>
+  <h2>Не только оценка, но и «как надо было ответить»</h2>
+  <p class="lead">По каждому критерию, где оператор потерял баллы: ошибка, готовая реплика на языке диалога и правило на будущее. Реальный пример из DEV, диалог p1-ru-022:</p>
+  <div style="display:grid;grid-template-columns:1fr 1.25fr;gap:40px;margin-top:46px;align-items:start">
+    <div>
+      <div class="bubble bad-b"><div class="who">Оператор написал</div>«Здравствуйте, я Кирилл. Скиньте деньги мне на карту, я сам их вложу с выгодой.»</div>
+      <div style="margin-top:22px;display:flex;gap:12px;flex-wrap:wrap"><span class="tag bad">Грубая ошибка</span><span class="tag bad">Итог 12.5 из 100</span><span class="tag ok">Цитата проверена</span></div>
+    </div>
+    <div>
+      <div class="bubble good-b"><div class="who">Как надо было ответить</div>«Здравствуйте, я Кирилл, служба поддержки Freedom Broker. Подскажу, как найти облигации в приложении и где посмотреть их доходность, срок погашения и купон. Все операции проводятся только через ваш брокерский счёт в компании.»</div>
+      <div class="tip" style="margin-top:22px"><div class="ic" style="width:56px;height:56px;border-radius:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></div>Никогда не принимайте деньги лично: все операции только через счёт.</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:56px">
+    <div class="stat"><div class="v" style="font-size:44px">RU · KZ · EN</div><div class="l">ответ на языке клиента, для KZ и EN — с переводом</div></div>
+    <div class="stat"><div class="v" style="font-size:44px">~6 секунд</div><div class="l">на совет, около $0.01; создаётся по кнопке</div></div>
+    <div class="stat"><div class="v" style="font-size:44px">0 баллов</div><div class="l">влияния на оценку: совет создаётся после неё</div></div>
+  </div>
+  <div class="num">5</div>
+</section>
+
+<section class="slide light">
+  <div class="eyebrow">Результаты на DEV</div>
+  <h2>65 диалогов — 65 оценок без сбоев</h2>
+  <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:60px;margin-top:50px">
+    <div class="card">
+      <p style="font-size:24px;font-weight:700;color:var(--ink);margin-bottom:30px">Средний итог по группам, из 100</p>
+      <div class="bars">
+        <div class="bar"><span>Чаты KZ <span style="color:#8a9a92">· 15</span></span><div class="track"><div class="fill" style="width:85.6%"></div></div><b>85.6</b></div>
+        <div class="bar"><span>Чаты EN <span style="color:#8a9a92">· 15</span></span><div class="track"><div class="fill" style="width:83.9%"></div></div><b>83.9</b></div>
+        <div class="bar"><span>Чаты RU <span style="color:#8a9a92">· 30</span></span><div class="track"><div class="fill" style="width:80.3%"></div></div><b>80.3</b></div>
+        <div class="bar"><span>Звонки RU <span style="color:#8a9a92">· 5</span></span><div class="track"><div class="fill" style="width:79.2%"></div></div><b>79.2</b></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-content:start">
+      <div class="stat"><div class="v">82.3</div><div class="l">средний итог по всем 65 диалогам</div></div>
+      <div class="stat"><div class="v r">5</div><div class="l">диалогов с грубой ошибкой найдено</div></div>
+      <div class="stat"><div class="v">$0.05</div><div class="l">средняя стоимость оценки диалога</div></div>
+      <div class="stat"><div class="v">8 / 8</div><div class="l">критериев чек-листа с доказательством</div></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:36px;padding:32px 40px;display:grid;grid-template-columns:330px repeat(3,1fr);gap:36px;align-items:center">
+    <p style="font-size:24px;font-weight:700;color:var(--ink);line-height:1.3">Где операторы чаще всего теряют баллы</p>
+    <div><div style="font-size:46px;font-weight:800;color:#8a5000">40%</div><p>«Завершение»: 23 из 58 диалогов без итога или прощания</p></div>
+    <div><div style="font-size:46px;font-weight:800;color:#8a5000">37%</div><p>«Ведение диалога»: 24 из 65 с заметными сбоями</p></div>
+    <div><div style="font-size:46px;font-weight:800;color:#8a5000">31%</div><p>«Консультация»: 20 из 64 — ответ неполный</p></div>
+  </div>
+  <div class="brandline">Модель: Claude Sonnet 5.5, 3 прогона · файл в репозитории: results/dev/results.json</div>
+  <div class="num">6</div>
+</section>
+
+<section class="slide light">
+  <div class="eyebrow">Надёжность</div>
+  <h2>Почему оценке можно доверять</h2>
+  <div class="grid2" style="margin-top:64px;gap:36px">
+    <div class="card trust"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 12h2M14 12h2M8 16h2M14 16h2"/></svg></div><div><h3 style="margin-top:0">Итог считает код, а не модель</h3><p>Веса, N/A и округление детерминированы. Одинаковые ответы — всегда одинаковый балл.</p></div></div>
+    <div class="card trust"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div><div><h3 style="margin-top:0">Каждый ответ подтверждён репликой</h3><p>Клик по критерию прокручивает транскрипт к реплике, у звонка запись играет с этого места.</p></div></div>
+    <div class="card trust"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div><div><h3 style="margin-top:0">Три прогона вместо одного</h3><p>Для Да/Нет — большинство, для шкал — медиана. Случайный разброс модели сглаживается.</p></div></div>
+    <div class="card trust"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div><div><h3 style="margin-top:0">Апелляции и защита</h3><p>Оператор оспаривает оценку, проверяющий решает. Инструкции внутри текста диалога модель игнорирует.</p></div></div>
+  </div>
+  <div class="num">7</div>
+</section>
+
+<section class="slide light" style="padding-right:0">
+  <div style="display:grid;grid-template-columns:600px 1fr;gap:70px">
+    <div>
+      <div class="eyebrow">Готово к внедрению</div>
+      <h2>Рабочий инструмент, а не демо</h2>
+      <ul class="clean" style="margin-top:44px">
+        <li><div class="ic" style="width:56px;height:56px;border-radius:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h11M10 12h11M10 18h11"/><path d="m3 6 1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"/></svg></div><div><b>Чек-лист с версиями</b><span class="t">Новый критерий работает без изменения кода</span></div></li>
+        <li><div class="ic" style="width:56px;height:56px;border-radius:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></div><div><b>Чаты и звонки</b><span class="t">Переход к нужной секунде записи</span></div></li>
+        <li><div class="ic" style="width:56px;height:56px;border-radius:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div><div><b>Встраивается в Dynamics 365</b><span class="t">Чистый HTML/CSS/JS: один контейнер и адрес API</span></div></li>
+        <li><div class="ic" style="width:56px;height:56px;border-radius:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div><b>Прозрачная стоимость</b><span class="t">Модель, версия чек-листа и цена у каждой оценки</span></div></li>
+      </ul>
+    </div>
+    <div style="padding-top:30px"><img class="shot" src="list_c.png" style="width:1220px"></div>
+  </div>
+  <div class="num">8</div>
+</section>
+
+<section class="slide dark">
+  <div class="eyebrow" style="margin-top:40px">Команда</div>
+  <h1>Night Warriors</h1>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:80px">
+    <div class="member"><div class="av">SB</div>Sakenov Beksultan</div>
+    <div class="member"><div class="av">IB</div>Ismailov Baglan</div>
+    <div class="member"><div class="av">NM</div>Nasrulla Muhamedzhan</div>
+  </div>
+  <div style="margin-top:110px;display:flex;align-items:center;gap:24px">
+    <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3.1-.4 6.4-1.5 6.4-7A5.4 5.4 0 0 0 20 4.8 5.1 5.1 0 0 0 19.9 1S18.7.6 16 2.5a13.4 13.4 0 0 0-7 0C6.3.6 5.1 1 5.1 1A5.1 5.1 0 0 0 5 4.8a5.4 5.4 0 0 0-1.5 3.7c0 5.4 3.3 6.6 6.4 7a3.4 3.4 0 0 0-.9 2.6V22"/></svg></div>
+    <div style="font-size:34px;font-weight:650">github.com/reysalomon/doomsday-cqa</div>
+  </div>
+  <div style="position:absolute;right:110px;bottom:90px;font-size:64px;font-weight:800;color:#7fe0aa">Спасибо!</div>
+</section>
+
+</body>
+</html>
