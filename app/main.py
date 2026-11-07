@@ -18,7 +18,9 @@ from pydantic import BaseModel
 
 from app import store
 from app.checklist import allowed_answers, validate_checklist
+from app.coach import coach, lost_points
 from app.evaluator import evaluate
+from app.review import REASONS
 
 load_dotenv()
 ROOT = Path(__file__).resolve().parent.parent
@@ -58,6 +60,14 @@ class AppealRequest(BaseModel):
     evaluation_id: int
     criterion_id: str
     comment: str
+
+
+class ReviewRequest(BaseModel):
+    evaluation_id: int
+    criterion_id: str
+    decision: str
+    new_answer: str | int | None = None
+    reason: str = ""
 
 
 class DecisionRequest(BaseModel):
@@ -147,7 +157,8 @@ def list_conversations():
                     "id": view["id"], "status": view["status"], "error": view["error"],
                     "total": view["final_score"]["total"] if view["status"] == "done" else None,
                     "gross_error": view["final_score"]["gross_error"] if view["status"] == "done" else False,
-                    "open_appeals": view.get("open_appeals", 0), "changed": view.get("changed", False)}
+                    "open_appeals": view.get("open_appeals", 0), "changed": view.get("changed", False),
+                    "to_review": view.get("to_review", 0)}
             items.append(item)
     return items
 
@@ -237,6 +248,12 @@ def create_checklist(request: ChecklistRequest):
         return store.get_checklist(conn, new_id)
 
 
+def check_provider(record: dict) -> None:
+    if (record["channel"] == "voice call" and os.environ.get("LLM_PROVIDER") == "openrouter"
+            and os.environ.get("CQA_ALLOW_VOICE_ON_OPENROUTER") != "1"):
+        raise RuntimeError("Реальные звонки не отправляются на OpenRouter без разрешения организаторов.")
+
+
 def run_evaluation(evaluation_id: int) -> None:
     """Background job: always performs a fresh model evaluation."""
     with store.db() as conn:
@@ -246,9 +263,7 @@ def run_evaluation(evaluation_id: int) -> None:
             conn.execute("SELECT * FROM conversations WHERE id=?", (row["conversation_id"],)).fetchone())
         checklist = store.get_checklist(conn, row["checklist_id"])
     try:
-        if (record["channel"] == "voice call" and os.environ.get("LLM_PROVIDER") == "openrouter"
-                and os.environ.get("CQA_ALLOW_VOICE_ON_OPENROUTER") != "1"):
-            raise RuntimeError("Реальные звонки не отправляются на OpenRouter без разрешения организаторов.")
+        check_provider(record)
         result = evaluate(record, checklist, votes=int(os.environ.get("CQA_VOTES", "1")))
         update = ("done", json.dumps(result, ensure_ascii=False), None)
     except Exception as error:  # the job must record every failure for the UI
@@ -313,8 +328,9 @@ def create_appeal(request: AppealRequest):
 @app.get("/api/appeals")
 def list_appeals(status: str | None = None):
     with store.db() as conn:
-        query = ("SELECT a.*, e.conversation_id FROM appeals a JOIN evaluations e ON e.id=a.evaluation_id")
-        rows = conn.execute(query + (" WHERE a.status=?" if status else "") + " ORDER BY a.id DESC",
+        query = ("SELECT a.*, e.conversation_id FROM appeals a JOIN evaluations e ON e.id=a.evaluation_id "
+                 "WHERE a.source='user'")
+        rows = conn.execute(query + (" AND a.status=?" if status else "") + " ORDER BY a.id DESC",
                             (status,) if status else ()).fetchall()
         items = []
         for row in rows:
@@ -324,13 +340,23 @@ def list_appeals(status: str | None = None):
                 "SELECT * FROM conversations WHERE id=?", (row["conversation_id"],)).fetchone())
             item = evaluation["result"]["criteria"][row["criterion_id"]]
             turn = item["evidence_turn"]
-            transcript = conversation["transcript"]
             items.append({**store.appeal_view(row), "conversation_id": row["conversation_id"],
                           "criterion": _criterion(evaluation["checklist"], row["criterion_id"]),
                           "original": item, "current_total": evaluation["final_score"]["total"],
-                          "fragment": [{**t, "index": i} for i, t in enumerate(transcript)
-                                       if turn - 2 <= i <= turn + 2]})
+                          "fragment": _fragment(conversation["transcript"], turn)})
     return items
+
+
+def _fragment(transcript: list, turn: int) -> list:
+    return [{**t, "index": i} for i, t in enumerate(transcript) if turn - 2 <= i <= turn + 2]
+
+
+def _new_answer(criterion: dict, value):
+    if isinstance(value, str) and value.isdigit():
+        value = int(value)
+    if value not in allowed_answers(criterion):
+        raise HTTPException(422, "Такой ответ недоступен для этого критерия.")
+    return value
 
 
 @app.post("/api/appeals/{appeal_id}/decision")
@@ -350,15 +376,86 @@ def decide_appeal(appeal_id: int, request: DecisionRequest):
         new_answer = None
         if request.decision == "changed":
             criterion = _criterion(store.get_checklist(conn, row["checklist_id"]), appeal["criterion_id"])
-            new_answer = request.new_answer
-            if isinstance(new_answer, str) and new_answer.isdigit():
-                new_answer = int(new_answer)
-            if new_answer not in allowed_answers(criterion):
-                raise HTTPException(422, "Такой ответ недоступен для этого критерия.")
+            new_answer = _new_answer(criterion, request.new_answer)
         conn.execute("UPDATE appeals SET status='decided', decision=?, new_answer=?, reason=?, decided_at=? "
                      "WHERE id=?", (request.decision, json.dumps(new_answer) if new_answer is not None else None,
                                     reason, store.now(), appeal_id))
         return store.evaluation_view(conn, row)
+
+
+@app.get("/api/reviews")
+def list_reviews():
+    """Answers the model is unsure about, from the latest evaluation of every conversation."""
+    items, answers, reviewed = [], 0, 0
+    with store.db() as conn:
+        rows = conn.execute("SELECT e.* FROM evaluations e WHERE e.status='done' AND e.id = "
+                            "(SELECT MAX(id) FROM evaluations WHERE conversation_id=e.conversation_id) "
+                            "ORDER BY e.conversation_id").fetchall()
+        for row in rows:
+            view = store.evaluation_view(conn, row)
+            answers += len(view["result"]["criteria"])
+            reviewed += sum(a["source"] == "review" for a in view["appeals"])
+            transcript = None
+            for cid, reasons in view["review"].items():
+                if transcript is None:
+                    transcript = store.conversation_record(conn.execute(
+                        "SELECT * FROM conversations WHERE id=?", (row["conversation_id"],)).fetchone())["transcript"]
+                item = view["result"]["criteria"][cid]
+                items.append({"evaluation_id": row["id"], "conversation_id": row["conversation_id"],
+                              "criterion": _criterion(view["checklist"], cid), "original": item,
+                              "reasons": [REASONS[r] for r in reasons], "votes": view["result"]["votes"],
+                              "fragment": _fragment(transcript, item["evidence_turn"])})
+    return {"items": items, "answers": answers, "pending": len(items), "reviewed": reviewed,
+            "evaluations": len(rows)}
+
+
+@app.post("/api/reviews")
+def decide_review(request: ReviewRequest):
+    """A person confirms or corrects an answer from the review queue."""
+    if request.decision not in ("confirmed", "changed"):
+        raise HTTPException(422, "Решение должно быть confirmed или changed.")
+    with store.db() as conn:
+        row = _done_evaluation(conn, request.evaluation_id)
+        view = store.evaluation_view(conn, row)
+        if request.criterion_id not in view["review"]:
+            raise HTTPException(409, "Этот ответ не ждёт проверки.")
+        new_answer = None
+        if request.decision == "changed":
+            new_answer = _new_answer(_criterion(view["checklist"], request.criterion_id), request.new_answer)
+        stamp = store.now()
+        conn.execute(
+            "INSERT INTO appeals (evaluation_id, criterion_id, comment, status, decision, new_answer, reason, "
+            "created_at, decided_at, source) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (row["id"], request.criterion_id, "Ответ модели отправлен на проверку автоматически", "decided",
+             request.decision, json.dumps(new_answer) if new_answer is not None else None,
+             request.reason.strip() or "Проверено человеком", stamp, stamp, "review"))
+        return store.evaluation_view(conn, row)
+
+
+@app.post("/api/evaluations/{evaluation_id}/coach/{criterion_id}")
+def coach_operator(evaluation_id: int, criterion_id: str):
+    """How the operator should have answered. Generated once per criterion and kept."""
+    with store.db() as conn:
+        row = _done_evaluation(conn, evaluation_id)
+        view = store.evaluation_view(conn, row)
+        criterion = _criterion(view["checklist"], criterion_id)
+        if criterion_id in view["coaching"]:
+            return view["coaching"][criterion_id]
+        answer = view["final_answers"][criterion_id]
+        if not lost_points(criterion, answer):
+            raise HTTPException(409, "По этому критерию оператор не потерял баллы.")
+        record = store.conversation_record(conn.execute(
+            "SELECT * FROM conversations WHERE id=?", (row["conversation_id"],)).fetchone())
+    try:
+        check_provider(record)
+        advice = coach(record, criterion, answer, view["result"]["criteria"][criterion_id])
+    except Exception as error:  # show the model failure in the UI instead of a bare 500
+        raise HTTPException(502, f"Не удалось подготовить совет: {str(error)[:300]}") from None
+    with store.db() as conn:
+        conn.execute("INSERT OR REPLACE INTO coaching (evaluation_id, criterion_id, result, created_at) "
+                     "VALUES (?,?,?,?)", (evaluation_id, criterion_id, json.dumps(advice, ensure_ascii=False),
+                                          store.now()))
+    return advice
 
 
 @app.get("/api/health")

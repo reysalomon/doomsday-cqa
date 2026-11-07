@@ -13,6 +13,11 @@ ATTEMPTS = 2
 
 def validate_output(output: dict, schema: dict) -> None:
     """Reject answers the provider did not constrain, such as an invalid enum value."""
+    if "answer" not in next(iter(schema["properties"].values())).get("properties", {}):
+        missing = [field for field in schema["required"] if field not in output]
+        if missing:  # a plain schema such as coaching: only check the fields exist
+            raise ValueError(f"missing fields {missing}")
+        return
     for name, spec in schema["properties"].items():
         item = output.get(name)
         if not isinstance(item, dict):

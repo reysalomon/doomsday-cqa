@@ -134,3 +134,83 @@ def test_audio_stream_extracts_fresh_link(client, monkeypatch):
     response = client.get("/api/audio/v2/stream", follow_redirects=False)
     assert response.status_code == 307
     assert response.headers["location"] == "https://y/a.mp3?sp=r&sig=1"
+
+
+def split_model(monkeypatch):
+    """Three passes that disagree on c05 and cite a quote that is not in the transcript for c01."""
+    calls = iter(range(100))
+
+    def model(system, prompt, schema):
+        result = fake_model(system, prompt, schema)
+        result["output"]["c01"] = item("yes", quote="Добрый вечер")
+        if next(calls) == 0:
+            result["output"]["c05"] = item("no")
+        return result
+    monkeypatch.setattr(evaluator, "call_model", model)
+    monkeypatch.setenv("CQA_VOTES", "3")
+
+
+def test_uncertain_answers_go_to_review(client, monkeypatch):
+    split_model(monkeypatch)
+    evaluation = evaluate(client)
+    assert evaluation["review"] == {"c01": ["evidence"], "c05": ["disagreement"]}
+    queue = client.get("/api/reviews").json()
+    assert queue["pending"] == 2 and queue["answers"] == 8
+    assert {i["criterion"]["id"] for i in queue["items"]} == {"c01", "c05"}
+    assert client.get("/api/conversations").json()[0]["evaluation"]["to_review"] == 2
+
+
+def test_review_decision_changes_score_and_leaves_queue(client, monkeypatch):
+    split_model(monkeypatch)
+    evaluation = evaluate(client)
+    view = client.post("/api/reviews", json={"evaluation_id": evaluation["id"], "criterion_id": "c01",
+                                             "decision": "changed", "new_answer": "no"}).json()
+    assert view["final_answers"]["c01"] == "no" and view["final_score"]["total"] < 100
+    assert "c01" not in view["review"]
+    assert client.post("/api/reviews", json={"evaluation_id": evaluation["id"], "criterion_id": "c01",
+                                             "decision": "confirmed"}).status_code == 409
+    assert client.post("/api/reviews", json={"evaluation_id": evaluation["id"], "criterion_id": "c05",
+                                             "decision": "confirmed"}).json()["to_review"] == 0
+    assert client.get("/api/appeals").json() == []
+
+
+def test_coaching_only_for_lost_points_and_cached(client, monkeypatch):
+    from app import coach
+    calls = []
+
+    def model(system, prompt, schema):
+        calls.append(prompt)
+        return {"output": {"mistake": "m", "turn": 99, "better_reply": "b", "better_reply_ru": "b",
+                           "tip": "t"}, "cost_usd": 0.01, "model": "fake"}
+    monkeypatch.setattr(coach, "call_model", model)
+    evaluation = evaluate(client)
+    url = f"/api/evaluations/{evaluation['id']}/coach/"
+    assert client.post(url + "c01").status_code == 409
+    client.post("/api/appeals", json={"evaluation_id": evaluation["id"], "criterion_id": "c01", "comment": "x"})
+    appeal = client.get("/api/appeals").json()[0]
+    client.post(f"/api/appeals/{appeal['id']}/decision", json={"decision": "changed", "reason": "r", "new_answer": "no"})
+    advice = client.post(url + "c01").json()
+    assert advice["better_reply"] == "b" and advice["turn"] == 1  # out-of-range turn falls back to evidence
+    assert client.post(url + "c01").json() == advice and len(calls) == 1
+    assert "c01" in client.get("/api/conversations/t1").json()["evaluation"]["coaching"]
+
+
+def test_export_matches_organizers_format(client):
+    from app.export import build_results, check_results
+    evaluate(client)
+    payload = build_results("UPLOAD", "Team")
+    assert payload["schema_version"] == "1.0" and check_results(payload) == []
+    record = payload["results"][0]
+    values = {c["criterion_id"]: c["value"] for c in record["criteria"]}
+    assert values == {"contact": True, "discovery": True, "identification": None, "consultation": 20,
+                      "empathy": True, "dialogue": 10, "closure": True, "critical": False}
+    assert record["criteria"][0]["evidence_turns"] == [2]  # 1-based
+    assert record["score"] == {"final_score": 100.0, "critical_flag": False}
+
+
+def test_export_keeps_failed_conversations(client, monkeypatch):
+    from app.export import build_results
+    monkeypatch.setattr(evaluator, "call_model", lambda *a: (_ for _ in ()).throw(RuntimeError("limit")))
+    evaluate(client)
+    record = build_results("UPLOAD", "Team")["results"][0]
+    assert record["status"] == "error" and record["score"] is None and record["criteria"] == []

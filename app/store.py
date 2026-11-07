@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.review import pending_review
 from app.scoring import compute
 
 SCHEMA = """
@@ -22,7 +23,11 @@ CREATE TABLE IF NOT EXISTS evaluations (
 CREATE TABLE IF NOT EXISTS appeals (
   id INTEGER PRIMARY KEY AUTOINCREMENT, evaluation_id INTEGER NOT NULL REFERENCES evaluations(id),
   criterion_id TEXT NOT NULL, comment TEXT NOT NULL, status TEXT NOT NULL, decision TEXT,
-  new_answer TEXT, reason TEXT, created_at TEXT NOT NULL, decided_at TEXT);
+  new_answer TEXT, reason TEXT, created_at TEXT NOT NULL, decided_at TEXT,
+  source TEXT NOT NULL DEFAULT 'user');
+CREATE TABLE IF NOT EXISTS coaching (
+  evaluation_id INTEGER NOT NULL REFERENCES evaluations(id), criterion_id TEXT NOT NULL,
+  result TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (evaluation_id, criterion_id));
 CREATE INDEX IF NOT EXISTS idx_eval_conv ON evaluations(conversation_id, id);
 CREATE INDEX IF NOT EXISTS idx_appeal_eval ON appeals(evaluation_id, id);
 """
@@ -49,6 +54,9 @@ def db():
 def init_db(default_checklist: dict) -> None:
     with db() as conn:
         conn.executescript(SCHEMA)
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(appeals)")}
+        if "source" not in columns:  # databases created before the review queue
+            conn.execute("ALTER TABLE appeals ADD COLUMN source TEXT NOT NULL DEFAULT 'user'")
         conn.execute("UPDATE evaluations SET status='error', error='Сервер был перезапущен', "
                      "finished_at=? WHERE status IN ('pending','running')", (now(),))
         if not conn.execute("SELECT 1 FROM checklists").fetchone():
@@ -118,11 +126,15 @@ def evaluation_view(conn, row) -> dict:
                            (row["id"],)).fetchall()
     final_answers = _final_answers(result, appeals)
     final = compute(checklist, final_answers)
+    review = pending_review(result, appeals)
+    coaching = {r["criterion_id"]: json.loads(r["result"]) for r in conn.execute(
+        "SELECT * FROM coaching WHERE evaluation_id=?", (row["id"],))}
     view.update(result=result, checklist=checklist, final_answers=final_answers,
                 final_score=final, original_score=result["score"],
                 changed=final_answers != {k: v["answer"] for k, v in result["criteria"].items()},
                 appeals=[appeal_view(a) for a in appeals],
-                open_appeals=sum(a["status"] == "open" for a in appeals))
+                open_appeals=sum(a["status"] == "open" for a in appeals),
+                review=review, to_review=len(review), coaching=coaching)
     return view
 
 

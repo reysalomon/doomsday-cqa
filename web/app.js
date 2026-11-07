@@ -38,15 +38,31 @@ const clock = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math
 const STATUS = {pending: ['В очереди', 'warn'], running: ['Оценивается', 'warn'], done: ['Готово', 'ok'], error: ['Ошибка', 'bad']};
 const EVIDENCE = {verified: ['Цитата проверена', 'ok'], checked_range: ['Проверен участок', 'ok'], na_explained: ['N/A обосновано', 'ok'],
   quote_mismatch: ['Цитата не найдена в реплике', 'bad'], invalid_turn: ['Реплика не найдена', 'bad'], no_evidence: ['Нет доказательства', 'bad'], no_quote: ['Нет цитаты', 'bad']};
+const grade = n => n === null || n === undefined ? '' : n >= 80 ? 'ok' : n >= 60 ? 'warn' : 'bad';
 const tag = ([text, kind]) => h('span', {class: 'tag ' + (kind || '')}, text);
 const options = c => [...(c.type === 'scale' ? c.scale.map(s => s.value) : ['yes', 'no']), ...(c.na_allowed ? ['na'] : [])];
 
+// Static, trusted SVG icons (Lucide-style strokes).
+const ICONS = {
+  chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
+  scale: '<path d="M12 3v18M5 21h14M3 7h18M6 7l-3 7a3 3 0 0 0 6 0zM18 7l-3 7a3 3 0 0 0 6 0z"/>',
+  list: '<path d="M10 6h11M10 12h11M10 18h11"/><path d="m3 6 1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"/>',
+  phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
+  spark: '<path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/>'};
+function icon(name) {
+  const el = h('span', {class: 'icon', 'aria-hidden': 'true'});
+  el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
+  return el;
+}
+
 function shell(active, content) {
-  const link = (href, id, text) => h('a', {href, class: active === id ? 'on' : ''}, text);
-  const engine = h('span', {class: 'engine'});
-  api('/api/health').then(i => { engine.textContent = `Модель: ${i.model} (${i.provider})`; }).catch(() => {});
-  root.replaceChildren(h('header', {class: 'top'}, h('span', {class: 'logo'}, 'CQA'),
-    h('nav', {class: 'nav', 'aria-label': 'Разделы'}, link('#/', 'list', 'Диалоги'), link('#/appeals', 'appeals', 'Апелляции'), link('#/checklist', 'checklist', 'Чек-лист')), engine),
+  const link = (href, id, ic, text) => h('a', {href, class: active === id ? 'on' : ''}, icon(ic), h('span', {}, text));
+  const engine = h('div', {class: 'engine'}, 'Модель подключается…');
+  api('/api/health').then(i => { engine.replaceChildren(h('span', {class: 'dot'}), h('span', {}, h('b', {}, `Claude ${i.model}`), h('small', {}, i.provider === 'claude_cli' ? 'Claude Code' : i.provider))); }).catch(() => {});
+  root.replaceChildren(h('aside', {class: 'top'}, h('a', {class: 'logo', href: '#/'}, h('span', {class: 'mark'}, 'Q'), h('span', {}, h('b', {}, 'CQA'), h('small', {}, 'Quality Analytics'))),
+    h('nav', {class: 'nav', 'aria-label': 'Разделы'}, link('#/', 'list', 'chat', 'Диалоги'), link('#/review', 'review', 'shield', 'Проверка'), link('#/appeals', 'appeals', 'scale', 'Апелляции'), link('#/checklist', 'checklist', 'list', 'Чек-лист')),
+    h('div', {class: 'side-foot'}, engine, h('div', {class: 'for'}, 'Прототип для Freedom Broker'))),
     h('main', {class: 'page'}, content));
 }
 
@@ -66,6 +82,7 @@ async function viewList() {
   const filter = (key, label, values) => h('select', {'aria-label': label, onchange: e => { state.filters[key] = e.target.value; draw(); }},
     h('option', {value: ''}, label), values.map(([v, t]) => h('option', {value: v, selected: state.filters[key] === v}, t)));
   const count = h('span', {class: 'muted small'});
+  const kpis = h('div', {class: 'kpis'});
   let visible = [];
 
   const run = guard(async ids => {
@@ -81,22 +98,33 @@ async function viewList() {
     visible = all.filter(c => (!f.language || c.language === f.language) && (!f.channel || c.channel === f.channel) &&
       (!f.dataset || c.dataset === f.dataset) && (!f.status || (c.evaluation?.status || 'none') === f.status));
     count.textContent = `Показано ${visible.length} из ${all.length}`;
+    const done = all.filter(c => c.evaluation?.status === 'done' && c.evaluation.total !== null);
+    const avg = done.length ? done.reduce((n, c) => n + c.evaluation.total, 0) / done.length : null;
+    const kpi = (label, value, note, kind) => h('div', {class: 'kpi ' + (kind || '')}, h('div', {class: 'kpi-label'}, label), h('div', {class: 'kpi-value'}, value), h('div', {class: 'kpi-note'}, note));
+    kpis.replaceChildren(
+      kpi('Средний балл', avg === null ? '—' : avg.toFixed(1), `по ${done.length} оценённым диалогам`, grade(avg)),
+      kpi('Диалогов', all.length, `${all.filter(c => c.channel === 'voice call').length} звонков · ${all.filter(c => c.channel !== 'voice call').length} чатов`),
+      kpi('Грубые ошибки', all.filter(c => c.evaluation?.gross_error).length, 'диалогов с нарушением', all.some(c => c.evaluation?.gross_error) ? 'bad' : 'ok'),
+      kpi('Ждут проверки', all.reduce((n, c) => n + (c.evaluation?.to_review || 0), 0), 'неуверенных ответов модели', 'warn'));
     if (!all.length) table.replaceChildren(h('p', {class: 'muted'}, 'Диалогов пока нет. Введите group_id и нажмите «Загрузить набор».'));
     else table.replaceChildren(h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, ''), ['Диалог', 'Набор', 'Канал', 'Язык', 'Реплик', 'Статус'].map(t => h('th', {}, t)), h('th', {class: 'num'}, 'Итог'), h('th', {}, 'Отметки'))),
       h('tbody', {}, visible.map(c => {
         const e = c.evaluation;
         return h('tr', {}, h('td', {}, h('input', {type: 'checkbox', 'aria-label': 'Выбрать ' + c.id, checked: state.selected.has(c.id),
           onchange: ev => ev.target.checked ? state.selected.add(c.id) : state.selected.delete(c.id)})),
-          h('td', {}, h('a', {href: '#/c/' + encodeURIComponent(c.id)}, c.id)), h('td', {}, c.dataset), h('td', {}, c.channel === 'voice call' ? 'Звонок' : 'Чат'), h('td', {}, c.language), h('td', {}, c.turns),
+          h('td', {}, h('a', {href: '#/c/' + encodeURIComponent(c.id)}, c.id)), h('td', {}, c.dataset), h('td', {}, h('span', {class: 'chan'}, icon(c.channel === 'voice call' ? 'phone' : 'chat'), c.channel === 'voice call' ? 'Звонок' : 'Чат')), h('td', {}, h('span', {class: 'lang lang-' + c.language}, c.language)), h('td', {}, c.turns),
           h('td', {title: e?.error || ''}, e ? tag(STATUS[e.status]) : h('span', {class: 'muted'}, 'Не оценён')),
-          h('td', {class: 'num'}, e?.status === 'done' ? fmt(e.total) : '—'),
-          h('td', {}, e?.gross_error && tag(['Грубая ошибка', 'bad']), ' ', e?.open_appeals > 0 && tag(['Апелляция', 'warn']), ' ', e?.changed && tag(['Изменено', 'ok'])));
+          h('td', {class: 'num'}, e?.status === 'done' ? h('span', {class: 'pill ' + grade(e.total)}, fmt(e.total)) : '—'),
+          h('td', {}, e?.gross_error && tag(['Грубая ошибка', 'bad']), ' ', e?.open_appeals > 0 && tag(['Апелляция', 'warn']), ' ', e?.to_review > 0 && tag([`Проверить: ${e.to_review}`, 'warn']), ' ', e?.changed && tag(['Изменено', 'ok'])));
       }))));
     if (all.some(c => ['pending', 'running'].includes(c.evaluation?.status))) state.timer = setTimeout(draw, 2500);
   });
 
   body.replaceChildren(
-    h('div', {class: 'bar'}, h('h1', {}, 'Диалоги'), h('span', {class: 'grow'}), group,
+    h('div', {class: 'hero'}, h('div', {}, h('div', {class: 'eyebrow'}, 'Conversation Quality Analytics'), h('h1', {}, 'Качество работы операторов'),
+      h('p', {}, 'Чаты и звонки на русском, казахском и английском. Оценка по чек-листу с доказательствами, проверкой человеком и советами оператору.'))),
+    kpis,
+    h('div', {class: 'bar'}, h('h2', {}, 'Диалоги'), h('span', {class: 'grow'}), group,
       h('button', {onclick: guard(async () => { const r = await api('/api/import', {group_id: group.value || 'DEV'}); toast(`Загружено: ${r.imported}`); draw(); })}, 'Загрузить набор'),
       h('button', {onclick: () => file.click()}, 'Загрузить файл'), file),
     h('div', {class: 'card'},
@@ -147,9 +175,10 @@ async function viewCard(id) {
     }
     const r = e.result, score = e.final_score;
     const head = h('div', {class: 'card'}, controls, h('div', {class: 'score'},
-      h('div', {}, h('div', {class: 'small muted'}, e.changed ? 'Финальный итог' : 'Итог'), h('div', {class: 'big'}, fmt(score.total))),
+      h('div', {class: 'ring ' + grade(score.total), style: `--p:${score.total ?? 0}`}, h('div', {}, h('div', {class: 'big'}, fmt(score.total)), h('div', {class: 'score-label'}, e.changed ? 'финальный' : 'из 100'))),
       e.changed && h('div', {}, h('div', {class: 'small muted'}, 'Исходная оценка'), h('div', {style: 'font-size:22px'}, fmt(e.original_score.total))),
-      score.gross_error ? tag(['Грубая ошибка', 'bad']) : tag(['Грубых ошибок нет', 'ok'])),
+      score.gross_error ? tag(['Грубая ошибка', 'bad']) : tag(['Грубых ошибок нет', 'ok']),
+      e.to_review ? tag([`Человеку проверить: ${e.to_review} из ${e.checklist.criteria.length}`, 'warn']) : tag(['Модель уверена во всех ответах', 'ok'])),
       h('div', {class: 'sections'}, Object.entries(score.sections).filter(([, s]) => s.max > 0).map(([n, s]) => h('div', {class: 'section'}, h('div', {class: 'muted'}, n), `${fmt(s.earned)} из ${fmt(s.max)}`))),
       h('p', {class: 'small muted', style: 'margin-bottom:0'}, `${r.model} · чек-лист v${e.checklist.version} · оценено ${when(e.finished_at)} · прогонов: ${r.votes} · ≈ $${Number(r.cost_usd).toFixed(3)}`));
     const rows = e.checklist.criteria.map(cr => {
@@ -161,7 +190,16 @@ async function viewCard(id) {
         await api('/api/appeals', {evaluation_id: e.id, criterion_id: cr.id, comment: comment.value}); toast('Апелляция подана'); render();
       })}, 'Подать апелляцию'));
       const range = item.evidence_status === 'checked_range';
-      return h('article', {class: 'crit'}, h('div', {class: 'crit-head'}, h('h3', {}, cr.title), tag([answerText(final), final === item.answer ? '' : 'warn']),
+      const review = e.review[cr.id] && reviewBox(e, cr, item, render);
+      const coachBox = h('div', {});
+      const showAdvice = a => coachBox.replaceChildren(adviceView(a, () => focus(a.turn)));
+      if (e.coaching[cr.id]) showAdvice(e.coaching[cr.id]);
+      else if (lostPoints(cr, final)) coachBox.append(h('button', {class: 'coach-btn', onclick: guard(async ev => {
+        ev.target.disabled = true; ev.target.textContent = 'Готовлю совет…';
+        try { showAdvice(await api(`/api/evaluations/${e.id}/coach/${cr.id}`, {})); }
+        catch (err) { ev.target.disabled = false; ev.target.textContent = 'Как надо было ответить'; throw err; }
+      })}, icon('spark'), ' Как надо было ответить'));
+      return h('article', {class: 'crit'}, h('div', {class: 'crit-head'}, h('h3', {}, cr.title), tag([answerText(final), final !== item.answer ? 'warn' : final === 'na' ? '' : lostPoints(cr, final) ? 'bad' : 'ok']),
         final !== item.answer && h('span', {class: 'small muted'}, `было: ${answerText(item.answer)}`),
         cr.type !== 'flag' && h('span', {class: 'pts'}, applied.points === null ? 'Не учитывается' : `${fmt(applied.points)} / ${fmt(applied.applied_weight)}`)),
         h('p', {style: 'margin:6px 0'}, item.explanation),
@@ -169,8 +207,10 @@ async function viewCard(id) {
         h('div', {class: 'bar', style: 'margin:6px 0 0'}, item.answer !== 'na' && h('button', {class: 'link', onclick: () => range ? focus(item.checked_from, item.checked_to) : focus(item.evidence_turn)},
           range ? `Перейти к проверенному участку [${item.checked_from}–${item.checked_to}]` : `Перейти к реплике [${item.evidence_turn}]`),
           tag(EVIDENCE[item.evidence_status] || [item.evidence_status, 'warn']), r.votes > 1 && h('span', {class: 'small muted'}, `согласие ${Math.round(item.agreement * 100)}%`),
-          h('span', {class: 'grow'}), !open && h('button', {onclick: () => { form.hidden = !form.hidden; }}, 'Оспорить')),
-        form, appeals.map(a => h('div', {class: 'box small'}, h('div', {}, tag(a.status === 'open' ? ['На рассмотрении', 'warn'] : a.decision === 'changed' ? ['Оценка изменена', 'ok'] : ['Оценка подтверждена', ''])), h('p', {style: 'margin:6px 0'}, 'Комментарий: ', a.comment),
+          h('span', {class: 'grow'}), !open && !review && h('button', {onclick: () => { form.hidden = !form.hidden; }}, 'Оспорить')),
+        review, coachBox, form, appeals.map(a => a.source === 'review' ? h('div', {class: 'box small'}, tag(['Проверено человеком', 'ok']), ' ',
+          a.decision === 'changed' ? `Исправлено на «${answerText(a.new_answer)}». ` : 'Ответ модели подтверждён. ', a.reason)
+          : h('div', {class: 'box small'}, h('div', {}, tag(a.status === 'open' ? ['На рассмотрении', 'warn'] : a.decision === 'changed' ? ['Оценка изменена', 'ok'] : ['Оценка подтверждена', ''])), h('p', {style: 'margin:6px 0'}, 'Комментарий: ', a.comment),
           a.status === 'decided' && h('p', {style: 'margin:0'}, `Решение: ${a.decision === 'changed' ? answerText(a.new_answer) : 'без изменений'}. Причина: ${a.reason}`))));
     });
     right.replaceChildren(head, h('div', {class: 'card', style: 'margin-top:12px'}, h('h2', {}, 'Критерии'), rows));
@@ -179,6 +219,55 @@ async function viewCard(id) {
   shell('list', h('div', {}, h('div', {class: 'bar'}, h('a', {href: '#/'}, '← Диалоги'), h('h1', {}, id), h('span', {class: 'tag'}, c.channel === 'voice call' ? 'Звонок' : 'Чат'), h('span', {class: 'tag'}, c.language)),
     h('div', {class: 'split'}, left, right)));
   render();
+}
+
+const REASON_TEXT = {disagreement: 'Прогоны модели разошлись', evidence: 'Доказательство не найдено в транскрипте'};
+const lostPoints = (c, a) => c.type === 'flag' ? a === 'yes' : c.type === 'scale' ? a !== 'na' && a < Math.max(...c.scale.map(s => s.value)) : a === 'no';
+const votesLine = item => item.votes?.length > 1 && h('span', {class: 'small muted'}, 'Ответы прогонов: ', item.votes.map(answerText).join(' · '));
+
+// Confirm or correct an answer the model was unsure about. `done` redraws the caller.
+function reviewControls(e, cr, done) {
+  const answer = h('select', {'aria-label': 'Правильный ответ'}, options(cr).map(v => h('option', {value: v, selected: String(v) === String(e.result.criteria[cr.id].answer)}, answerText(v))));
+  const reason = h('input', {placeholder: 'Комментарий (необязательно)', 'aria-label': 'Комментарий проверяющего', class: 'grow'});
+  const send = decision => guard(async () => {
+    await api('/api/reviews', {evaluation_id: e.id, criterion_id: cr.id, decision, new_answer: decision === 'changed' ? answer.value : null, reason: reason.value});
+    toast('Проверка сохранена'); done();
+  });
+  return h('div', {class: 'bar', style: 'margin:8px 0 0'}, h('button', {class: 'primary', onclick: send('confirmed')}, 'Модель права'), answer, h('button', {onclick: send('changed')}, 'Исправить'), reason);
+}
+
+function reviewBox(e, cr, item, done) {
+  return h('div', {class: 'box review'}, h('div', {class: 'bar', style: 'margin:0'}, tag(['Нужна проверка человеком', 'warn']),
+    e.review[cr.id].map(r => h('span', {class: 'small'}, REASON_TEXT[r])), votesLine(item)), reviewControls(e, cr, done));
+}
+
+function adviceView(a, jump) {
+  return h('div', {class: 'box advice'}, h('div', {class: 'small muted'}, 'Совет оператору'),
+    h('p', {style: 'margin:4px 0'}, h('strong', {}, 'Ошибка: '), a.mistake),
+    h('div', {class: 'small muted'}, 'Как надо было ответить ', h('button', {class: 'link', onclick: jump}, `(реплика [${a.turn}])`)),
+    h('div', {class: 'better'}, a.better_reply),
+    a.better_reply_ru && a.better_reply_ru !== a.better_reply && h('div', {class: 'small muted', style: 'margin-top:4px'}, 'Перевод: ', a.better_reply_ru),
+    h('p', {style: 'margin:6px 0 0'}, '💡 ', a.tip));
+}
+
+/* ---------- Review queue ---------- */
+async function viewReview() {
+  const q = await api('/api/reviews');
+  const auto = q.answers ? Math.round((1 - (q.pending + q.reviewed) / q.answers) * 100) : 0;
+  const stat = (big, text) => h('div', {class: 'section stat'}, h('div', {class: 'big'}, big), h('div', {class: 'muted'}, text));
+  const card = a => {
+    const e = {id: a.evaluation_id, result: {criteria: {[a.criterion.id]: a.original}}};
+    return h('article', {class: 'card', style: 'margin-bottom:12px'},
+      h('div', {class: 'bar'}, h('h3', {}, a.criterion.title), h('a', {href: '#/c/' + encodeURIComponent(a.conversation_id)}, a.conversation_id), h('span', {class: 'grow'}), a.reasons.map(r => tag([r, 'warn']))),
+      h('div', {class: 'row2'}, h('div', {}, h('div', {class: 'small muted'}, 'Ответ модели'), h('p', {style: 'margin:4px 0'}, h('strong', {}, answerText(a.original.answer)), ' — ', a.original.explanation),
+        a.original.quote && h('div', {class: 'quote'}, a.original.quote), votesLine(a.original)),
+        h('div', {}, h('div', {class: 'small muted'}, 'Фрагмент диалога'), a.fragment.map(t => h('div', {class: 'turn ' + t.speaker + (t.index === a.original.evidence_turn ? ' hit' : ''), style: 'max-width:100%'}, h('div', {class: 'meta'}, `[${t.index}] ${t.speaker}`), t.text)))),
+      reviewControls(e, a.criterion, viewReview));
+  };
+  shell('review', h('div', {}, h('div', {class: 'bar'}, h('h1', {}, 'Проверка человеком')),
+    h('p', {class: 'muted', style: 'max-width:760px'}, 'Каждый диалог модель оценивает несколько раз независимо. Если прогоны разошлись или цитата не нашлась в транскрипте, ответ попадает сюда. Остальные ответы принимаются автоматически, и проверять их не нужно.'),
+    h('div', {class: 'sections', style: 'margin-bottom:16px'}, stat(`${auto}%`, 'ответов принято автоматически'), stat(q.pending, 'ждут проверки'), stat(q.reviewed, 'проверено человеком'), stat(q.evaluations, 'оценённых диалогов')),
+    q.items.length ? q.items.map(card) : h('p', {class: 'muted'}, 'Все неуверенные ответы проверены.')));
 }
 
 /* ---------- Appeals ---------- */
@@ -259,6 +348,7 @@ const route = guard(async () => {
   const path = location.hash.slice(1) || '/';
   if (path.startsWith('/c/')) return viewCard(decodeURIComponent(path.slice(3)));
   if (path === '/appeals') return viewAppeals();
+  if (path === '/review') return viewReview();
   if (path === '/checklist') return viewChecklist();
   return viewList();
 });
