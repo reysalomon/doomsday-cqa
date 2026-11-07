@@ -5,6 +5,7 @@ Data Challenge Doomsday 2026, кейс Freedom Broker.
 
 - Результаты: [results/dev/results.json](results/dev/results.json), `results/prod/results.json` (контрольный набор)
 - Презентация: [docs/presentation/CQA_Night_Warriors.pdf](docs/presentation/CQA_Night_Warriors.pdf)
+- Демо-видео (40 с): [docs/presentation/CQA_Night_Warriors_demo.mp4](docs/presentation/CQA_Night_Warriors_demo.mp4)
 
 Прототип для хакатона Freedom Broker. Система оценивает работу оператора в чатах и звонках на RU, KZ и EN по настраиваемому чек-листу, показывает доказательства и поддерживает апелляции.
 
