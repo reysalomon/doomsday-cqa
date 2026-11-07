@@ -1,0 +1,41 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Разметка CQA</title><style>
+body{margin:0;font:15px/1.45 system-ui,sans-serif;background:#f6f7f8;color:#1c2024}
+header{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #d8dde2;padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+main{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}
+section{background:#fff;border:1px solid #d8dde2;border-radius:8px;padding:12px;min-width:0}
+#chat{max-height:calc(100vh - 110px);overflow:auto}.t{padding:6px 8px;margin:4px 0;border-radius:6px;background:#eef1f4}
+.t.operator{background:#dcebff}.t.client{background:#fff4d6}.t.system{background:#eee;color:#555;font-size:13px}
+.m{font-size:12px;color:#5b6570}.c{border-top:1px solid #e3e6ea;padding:10px 0}.c h3{margin:0 0 4px;font-size:15px}
+.r{font-size:13px;color:#4a535c;white-space:pre-line}.o label{display:inline-block;margin:4px 12px 4px 0}
+input[type=text],textarea{width:100%;box-sizing:border-box;padding:6px;border:1px solid #bcc4cc;border-radius:6px;font:inherit}
+button,select{padding:7px 10px;font:inherit}#who{width:170px}#st{font-weight:600}
+@media(max-width:800px){main{grid-template-columns:1fr}#chat{max-height:none}}
+</style></head><body><header>
+<input id="who" type="text" placeholder="Твоё имя" aria-label="Имя разметчика">
+<button id="prev">Назад</button><select id="pick" aria-label="Диалог"></select><button id="next">Дальше</button>
+<span id="st"></span><button id="export">Скачать разметку</button></header>
+<main><section id="chat"></section><section id="form"></section></main>
+<script id="d" type="application/json">__DATA__</script><script>
+const {checklist,dialogs}=JSON.parse(document.getElementById('d').textContent),KEY='cqa-labels-v1';
+let S={who:'',labels:{}},cur=0;try{S=JSON.parse(localStorage.getItem(KEY))||S}catch(e){}
+const $=id=>document.getElementById(id),save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}status()};
+const opts=c=>[...(c.type==='scale'?c.scale.map(s=>[String(s.value),s.value+' — '+s.label]):[['yes','Да'],['no','Нет']]),...(c.na_allowed?[['na','N/A']]:[])];
+const done=id=>checklist.criteria.every(c=>S.labels[id]?.[c.id]?.answer!==undefined);
+function status(){$('st').textContent=`Готово ${dialogs.filter(d=>done(d.conversation_id)).length} из ${dialogs.length}`;
+ [...$('pick').options].forEach((o,i)=>o.textContent=(done(dialogs[i].conversation_id)?'✓ ':'')+dialogs[i].conversation_id)}
+function render(){const d=dialogs[cur],id=d.conversation_id;$('pick').value=cur;$('chat').replaceChildren();
+ const h=document.createElement('p');h.className='m';h.textContent=`${id} · ${d.channel} · ${d.language}`;$('chat').append(h);
+ d.transcript.forEach((t,i)=>{const e=document.createElement('div');e.className='t '+t.speaker;const m=document.createElement('div');m.className='m';
+  m.textContent=`[${i}] ${t.timestamp} · ${t.speaker}`;const x=document.createElement('div');x.textContent=t.text;e.append(m,x);$('chat').append(e)});
+ $('chat').scrollTop=0;$('form').replaceChildren();
+ checklist.criteria.forEach(c=>{const b=document.createElement('div');b.className='c';const t=document.createElement('h3');t.textContent=`${c.id.slice(1)}. ${c.title}`;
+  const r=document.createElement('div');r.className='r';r.textContent=c.rule+(c.na_rule?'\nN/A: '+c.na_rule:'');const o=document.createElement('div');o.className='o';
+  const L=(S.labels[id]??={})[c.id]??={};opts(c).forEach(([v,txt])=>{const l=document.createElement('label'),i=document.createElement('input');i.type='radio';i.name=c.id;i.value=v;i.checked=L.answer===v;
+   i.onchange=()=>{L.answer=v;save()};l.append(i,' '+txt);o.append(l)});
+  const n=document.createElement('input');n.type='text';n.placeholder='Номер реплики и комментарий, если спорно';n.setAttribute('aria-label','Комментарий: '+c.title);n.value=L.note||'';n.oninput=()=>{L.note=n.value;save()};
+  b.append(t,r,o,n);$('form').append(b)});status()}
+dialogs.forEach((d,i)=>$('pick').add(new Option(d.conversation_id,i)));$('who').value=S.who;$('who').oninput=e=>{S.who=e.target.value;save()};
+$('pick').onchange=e=>{cur=+e.target.value;render()};$('prev').onclick=()=>{cur=Math.max(0,cur-1);render()};$('next').onclick=()=>{cur=Math.min(dialogs.length-1,cur+1);render()};
+$('export').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download=`gold_${S.who||'annotator'}.json`;a.click()};render();
+</script></body></html>
