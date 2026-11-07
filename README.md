@@ -1,5 +1,11 @@
 # CQA: Conversation Quality Analytics
 
+**Команда: Night Warriors** — Sakenov Beksultan, Ismailov Baglan, Nasrulla Muhamedzhan.
+Data Challenge Doomsday 2026, кейс Freedom Broker.
+
+- Результаты: [results/dev/results.json](results/dev/results.json), `results/prod/results.json` (контрольный набор)
+- Презентация: [docs/presentation/CQA_Night_Warriors.pdf](docs/presentation/CQA_Night_Warriors.pdf)
+
 Прототип для хакатона Freedom Broker. Система оценивает работу оператора в чатах и звонках на RU, KZ и EN по настраиваемому чек-листу, показывает доказательства и поддерживает апелляции.
 
 ## Запуск
